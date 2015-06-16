@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-eqiv="content-type" content="text/html;charset=utf-8">
+<title></title>
+<link rel=stylesheet href="/css/site.css">
+</head>
+<body>
+<div id="top">
+<h1>Que regarder sur Canal+ replay ?</h1>
+</div>
+<div id="main">
+<h2>Comment ça marche ?</h2>
+<div id="etapes">
+<div class="etape">
+<h3>Etape 1:</h3>
+Se rendre sur <a href="http://replay.mycanal.fr/cplus/cinema" target="_blank">http://replay.mycanal.fr/cplus/cinema</a> et s'identifier, la liste des films disponibles doit être visible.
+</div>
+<div class="etape">
+<h3>Etape 2:</h3>
+Effectuer un clic droit sur la page et afficher la source, copier tout le contenu.
+</div>
+<div class="etape">
+<h3>Etape 3:</h3>
+Coller le contenu dans la zone de texte ci-dessous et envoyer !
+</div>
+</div>
+
+<form action="/process" method="POST">
+<textarea name="bodyform" rows="20" cols="80"></textarea>
+<input type="submit" value="Envoyer">
+</form>
+</div>
+</body>
+</html>
