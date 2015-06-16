@@ -4,9 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
-	//"io/ioutil"
 	"strings"
-	//"encoding/json"
 	"sort"
 	"text/template"
 	"os"
@@ -46,44 +44,7 @@ func findnote(c chan Film, element []string, i int, apimax chan bool){
 		c <- f
 	}
 }
-/*func findnote(c chan Film, element []string, i int, apimax chan bool){
-	apimax <- true
-	defer func(){<-apimax}()
-	fmt.Println("Doing", element[1])
-	str := strings.Replace(element[1]," ","+",-1)
-	resp, err := http.Get("http://www.omdbapi.com/?t="+str+"&y=&plot=short&r=json")
-	if err != nil {
-		fmt.Println("Request to omdb failed, ", err)
-//		<-apimax
-		return
-	}
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		fmt.Println("Could not read Omdb response, ", err)
-//		<-apimax
-		return
-	}
-	fmt.Println("Omdb responded.")
-	var decoded interface{}
-	errj := json.Unmarshal(body, &decoded)
-	if errj != nil {
-		fmt.Println("Could not unmarshal Omdb response", errj)
-		fmt.Println(string(body))
-		f := Film{element[1],"Error"}
-		c <- f
-		return
-	}
-	m := decoded.(map[string]interface{})
-	
-	if m["Response"] == "True" {
-		f := Film{element[1],m["imdbRating"].(string)}
-		c <- f
-	} else {
-		f := Film{element[1],m["Error"].(string)}
-		c <- f
-	}
-}*/
+
 func reply(w http.ResponseWriter, s string){
 	t, _ := template.ParseFiles(os.Getenv("GOPATH")+"/lib/films/result.html")
 	t.ExecuteTemplate(w, "Body", s)
@@ -106,8 +67,6 @@ func handler2(w http.ResponseWriter, r *http.Request) {
 	}
 	for i:=0; i< len(res)-6; i++ {
 		f := <-c
-		//Everytime a goroutine is done, the semaphore can release a space
-		//<-apimax
 		finalmap[i].Title = f.Title
 		finalmap[i].Note = f.Note
 	}
