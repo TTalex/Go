@@ -19,6 +19,13 @@ go install apicaller
 ##Usage
 ####Without API limits
 ```go
+package main
+
+import (
+	"fmt"
+	"apicaller"
+)
+
 func main(){
 	m, err := apicaller.Callapi("http://www.omdbapi.com/?t=Kill+Bill&y=&plot=short&r=json")
 	if (err != nil){
@@ -29,6 +36,36 @@ func main(){
 		fmt.Println(m["imdbRating"])
 	} else {
 		fmt.Println("Error")
+	}
+}
+```
+
+####With API limits
+```go
+package main
+
+import (
+	"fmt"
+	"apicaller"
+)
+
+func call(apimax chan bool){
+	m, err := apicaller.Callapisem("http://www.omdbapi.com/?t=Kill+Bill&y=&plot=short&r=json", apimax)
+	if (err != nil){
+		fmt.Println("Error")
+		return
+	}
+	if m["Response"] == "True" {
+		fmt.Println(m["imdbRating"])
+	} else {
+		fmt.Println("Error")
+	}
+}
+
+func main(){
+	apimax := make(chan bool, 20)
+	for i:=0; i< 50; i++ {
+		go call(apimax)
 	}
 }
 ```
