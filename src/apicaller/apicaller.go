@@ -19,7 +19,7 @@ func Callapi(url string) (map[string]interface{}, error){
 	var decoded interface{}
 	errj := json.Unmarshal(body, &decoded)
 	if errj != nil {
-		return nil, err
+		return nil, errj
 	}
 	return decoded.(map[string]interface{}), nil
 	

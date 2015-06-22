@@ -1,0 +1,266 @@
+package main
+
+import (
+	"fmt"
+	"net/http"
+	"text/template"
+	"os"
+	"apicaller"
+	"strconv"
+	"time"
+	"math"
+	"net/url"
+	"math/rand"
+)
+
+type Contents struct{
+	Image string
+	Lat float64
+	Lng float64
+	PhotoLat string
+	PhotoLng string
+	Circle string
+	Resultmsg string
+	Maxpages string
+	Animations string
+	Dscore string
+	Score string
+}
+
+type Photo struct{
+	Url string
+	Link string
+	Lat float64
+	Lng float64
+	Maxpages float64
+}
+
+type City struct{
+	Name string
+	Lat float64
+	Lng float64
+}
+
+func decodepicture(json map[string]interface{}, p *Photo){
+	photos := json["photos"].(map[string]interface{})
+	maxpages := photos["pages"].(float64)
+	if (photos["total"] == "0"){
+		fmt.Println("No photos found")
+		return
+	}
+	photo := photos["photo"].([]interface{})[0].(map[string]interface{})
+	farmid := photo["farm"]
+	serverid := photo["server"]
+	photoid := photo["id"]
+	photosecret := photo["secret"]
+	userid := photo["owner"]
+	lat, _ := strconv.ParseFloat(photo["latitude"].(string), 64)
+	lng, _ := strconv.ParseFloat(photo["longitude"].(string), 64)
+
+	photourl := fmt.Sprintf("https://farm%.0f.staticflickr.com/%s/%s_%s_n.jpg", farmid, serverid, photoid, photosecret)
+
+	photolink := fmt.Sprintf("https://www.flickr.com/photos/%s/%s", userid, photoid)
+	*p = Photo{Url: photourl, Link: photolink, Lat: lat, Lng: lng, Maxpages: maxpages}
+
+}
+
+func findpicture(citytag string, pagenumber int) Photo{
+	var p Photo
+	str := "https://api.flickr.com/services/rest/?method=flickr.photos.search&api_key=f02cd0b3f01902b08393489f9ad04eab&tags="+citytag+"&has_geo=true&extras=geo&per_page=1&format=json&nojsoncallback=1&page="+strconv.Itoa(pagenumber)
+
+	m, err := apicaller.Callapi(str)
+	if (err != nil){
+		fmt.Println(err)
+		return p
+	}
+	decodepicture(m, &p)
+	return p
+}
+
+func decodecity(name string, json map[string]interface{}, city *City){
+	if (json["status"] != "OK"){
+		fmt.Println(json["status"])
+		return
+	}
+	results := json["results"].([]interface{})
+	firstresult := results[0].(map[string]interface{})
+	geo := firstresult["geometry"].(map[string]interface{})
+	location := geo["location"].(map[string]interface{})
+	lat := location["lat"].(float64)
+	lng := location["lng"].(float64)
+	
+	*city = City{Name: name, Lat: lat, Lng: lng}
+}
+
+func findcity(name string) City{
+	var city City
+	str := "https://maps.googleapis.com/maps/api/geocode/json?address="+name+"&key=AIzaSyB3FzjaP3F-piuwV0mRdawQhX7R5ogJdx8"
+	m, err := apicaller.Callapi(str)
+	if (err != nil){
+		fmt.Println(err)
+		return city
+	}
+	decodecity(name, m, &city)
+	return city
+}
+
+func hiddenstr(name string, value float64) string{
+	return fmt.Sprintf("<input type=\"hidden\" name=\"%s\" value=%f />", name, value)
+}
+
+func reply(w http.ResponseWriter, photo Photo, city City, circle string, resultmsg string, dscore float64, score float64, astr string){
+	t, _ := template.ParseFiles(os.Getenv("GOPATH")+"/lib/flickrquizz/result.html")
+	var s string
+	if (photo.Link == ""){
+		s = "No photo found for this location."
+	}else{
+		s = "<a href=\""+photo.Link+"\"><img src=\""+photo.Url+"\"></img></a>"
+	}
+	photolat := hiddenstr("photolat", photo.Lat)
+	photolng := hiddenstr("photolng", photo.Lng)
+	maxpages := hiddenstr("maxpages", photo.Maxpages)
+	dscorestr := hiddenstr("dscore", dscore)
+	scorestr := hiddenstr("score", score)
+
+	contents := &Contents{Image: s, Lat: city.Lat, Lng: city.Lng, PhotoLat: photolat, PhotoLng: photolng, Circle: circle, Resultmsg: resultmsg, Maxpages: maxpages, Dscore: dscorestr, Score: scorestr, Animations: astr}
+	t.ExecuteTemplate(w, "Contents", contents)
+}
+
+func replygameover(w http.ResponseWriter, city City, circle string, score float64, astr string){
+	t, _ := template.ParseFiles(os.Getenv("GOPATH")+"/lib/flickrquizz/resultgameover.html")
+	scorestr := fmt.Sprintf("%.0f",score)
+	contents := &Contents{Lat: city.Lat, Lng: city.Lng, Circle: circle, Score: scorestr, Animations: astr}
+	t.ExecuteTemplate(w, "Contents", contents)
+}
+
+
+func circlestr(color string, lat float64, lng float64) string{
+	return fmt.Sprintf(`
+var marker={
+    position:  new google.maps.LatLng(%f,%f),
+    map: map,
+    icon:{      
+        path: google.maps.SymbolPath.CIRCLE,
+        strokeColor: '%s',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '%s',
+        fillOpacity: 0.35,
+        scale: 10
+    }      
+};
+new google.maps.Marker(marker);
+`,lat, lng, color, color)
+}
+
+func animationsstr(positive bool, value float64) string{
+	var left string
+	var right string
+	var background string
+	if (positive){
+		left = "50%"
+		right = "auto"
+		background = "linear-gradient(to right, lightgreen, green)"
+	}else{
+		left = "auto"
+		right = "50%"
+		background = "linear-gradient(to right, red, orange)"
+	}
+	return fmt.Sprintf(`
+.wave{
+  left:%s;
+  right:%s;
+  background: %s;
+  }
+  @keyframes dostuff{
+  0%%{
+  width:0%%;
+  }
+  100%%{ 
+  width:%f%%;
+  }
+  }
+  @keyframes domorestuff{
+  0%%{
+    width:%f%%;
+  }
+  50%%{ 
+  width:%f%%;
+  }
+  100%%{ 
+  width:%f%%;
+  }
+}
+`,left, right, background, value, value, math.Abs(value-1.0), value)
+}
+
+func checkresult(action string, photolng float64, citylng float64) bool{
+	return (photolng <= citylng && action == "West") || (photolng >= citylng && action == "East")
+}
+
+func handler2(w http.ResponseWriter, r *http.Request) {
+	var circle string
+	var resultmsg string
+	var dscore float64
+	var astr string
+	var score float64
+	maxpages := 100.0
+	cityname := r.FormValue("city")
+	cityname = url.QueryEscape(cityname)
+	seed, _ := strconv.ParseInt(r.FormValue("seed"), 10, 32)
+	fmt.Println(seed)
+	action := r.FormValue("action")
+	city := findcity(cityname)
+	mp, _ := strconv.ParseFloat(r.FormValue("maxpages"), 64)
+	if (action != "" && mp != 0.0){
+		photolng, _ := strconv.ParseFloat(r.FormValue("photolng"), 64)
+		photolat, _ := strconv.ParseFloat(r.FormValue("photolat"), 64)
+		dscore, _ = strconv.ParseFloat(r.FormValue("dscore"), 64)
+		score, _ = strconv.ParseFloat(r.FormValue("score"), 64)
+		maxpages = mp
+		win := checkresult(action, photolng, city.Lng)
+		if (win){
+			circle = circlestr("#00FF00",photolat,photolng)
+			multiplier := dscore/10 + 1
+			multiplier = math.Max(multiplier, 1)
+			score += 1 * multiplier
+			dscore += 10.0
+			dscore = math.Min(dscore, 50.0)
+			resultmsg = fmt.Sprintf("YAY :) - Score %.0f - Multiplier x%.0f",score, multiplier)
+		}else{
+			circle = circlestr("#FF0000",photolat,photolng)
+			dscore = math.Min(dscore, 10)
+			dscore -= 10.0
+			if(score >= 50){
+				dscore -= 10.0
+			}
+			if(score >= 100){
+				dscore -= 10.0
+			}
+			dscore = math.Max(dscore, -50.0)
+			resultmsg = fmt.Sprintf("NEY :( - Score %.0f - Multiplier x1",score)
+		}
+		astr = animationsstr(dscore>0,math.Abs(dscore))
+	}
+	if(dscore>-50.0){
+		//Flicker API limits the photo search results to 4000
+		timez := ((time.Now()).Nanosecond()%int(maxpages))%4000
+		photo := findpicture(cityname, timez)
+		reply(w, photo, city, circle, resultmsg, dscore, score, astr)
+	}else{
+		replygameover(w, city, circle, score, astr)
+	}
+}
+
+func indexhandler(w http.ResponseWriter, r *http.Request) {
+	t, _ := template.ParseFiles(os.Getenv("GOPATH")+"/lib/flickrquizz/index.html")
+	t.ExecuteTemplate(w, "Seed", rand.Int())
+}
+
+func main() {
+	rand.Seed(int64((time.Now()).Nanosecond()))
+	http.HandleFunc("/", indexhandler)
+	http.HandleFunc("/play/", handler2)
+	http.Handle("/css/", http.StripPrefix("/css/", http.FileServer(http.Dir(os.Getenv("GOPATH")+"/lib/flickrquizz/css"))))
+	http.ListenAndServe(":8081", nil)
+}

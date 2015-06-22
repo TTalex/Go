@@ -10,6 +10,7 @@ import (
 	"os"
 	"apicaller"
 )
+//Struct holding a Movie (Film) information
 type Film struct {
 	Title string
 	Note  string
