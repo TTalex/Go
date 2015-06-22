@@ -22,8 +22,8 @@ The [films](https://github.com/TTalex/Go/tree/master/src/films) project is a too
 1. Run the webserver
 
   ```
-  cd Go
-  go run films
+  cd Go/src/films/
+  go run films.go
   ```
   
 2. Access [localhost:8080](http://localhost:8080)
